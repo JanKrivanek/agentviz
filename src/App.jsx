@@ -135,6 +135,7 @@ export default function App() {
   var [showFilters, setShowFilters] = useState(false);
   var [compareLanding, setCompareLanding] = useState(false);
   var [showQA, setShowQA] = useState(false);
+  var [loadError, setLoadError] = useState(null);
   var qaFlag = useFeatureFlag("qa", false);
   var searchInputRef = useRef(null);
   var filtersRef = useRef(null);
@@ -172,8 +173,7 @@ export default function App() {
       // Enrich library entries with discoveredPath from discovered/manifest sessions
       var enrichedLibrary = visibleLibraryEntries.map(function (e) {
         if (e.discoveredPath) return e; // already has it
-        var match = (e.sessionId && discoveredBySessionId[e.sessionId])
-          || discoveredByPath[e.discoveredPath];
+        var match = (e.sessionId && discoveredBySessionId[e.sessionId]);
         if (match) return Object.assign({}, e, { discoveredPath: match.path });
         return e;
       });
@@ -311,6 +311,7 @@ export default function App() {
     var sessionName = entry.file || entry.summary || entry.filename || "events.jsonl";
 
     function afterLoad(rawText) {
+      setLoadError(null);
       setView("stats");
       handleFile(rawText, sessionName);
       // Patch discoveredPath and tags onto the persisted library entry so that
@@ -330,30 +331,21 @@ export default function App() {
       }
     }
 
-    // Manifest sessions: fetch directly from resolved URL
-    if (entry.source === "manifest" && entry.discoveredPath) {
-      fetch(entry.discoveredPath).then(function (r) {
-        if (!r.ok) throw new Error("fetch failed: " + r.status);
-        return r.text();
-      }).then(afterLoad).catch(function (err) {
-        console.error("[manifest] failed to load session:", entry.discoveredPath, err);
-      });
-      return;
+    function onFetchError(err) {
+      console.error("[session] failed to load:", sessionName, err);
+      setLoadError("Failed to load session: " + sessionName);
     }
 
-    if (entry.isDiscovered && sessionPath) {
-      discovered.fetchSessionContent(sessionPath).then(afterLoad).catch(function (err) {
-        console.error("[discovered] failed to load session:", sessionPath, err);
-      });
+    // Manifest or discovered sessions: fetch via the discovered-sessions hook
+    if ((entry.source === "manifest" || entry.isDiscovered) && sessionPath) {
+      discovered.fetchSessionContent(entry).then(afterLoad).catch(onFetchError);
       return;
     }
 
     var rawText = loadStoredSessionContent(entry.id);
     if (rawText) { afterLoad(rawText); return; }
     if (sessionPath) {
-      discovered.fetchSessionContent(sessionPath).then(afterLoad).catch(function (err) {
-        console.error("[discovered] failed to load session:", sessionPath, err);
-      });
+      discovered.fetchSessionContent(entry).then(afterLoad).catch(onFetchError);
       return;
     }
 
@@ -445,7 +437,7 @@ export default function App() {
   if (!session.events) {
     return (
       <AppLandingState
-        error={session.error}
+        error={session.error || loadError}
         onLoad={handleFile}
         onLoadSample={loadSample}
         onStartCompare={function () { setCompareLanding(true); }}
