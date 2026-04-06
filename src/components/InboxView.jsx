@@ -152,6 +152,9 @@ export default function InboxView({ entries, onOpenSession, onImport, onLoadSamp
     return function () { document.removeEventListener("keydown", onKey); };
   }, []);
 
+  // Faceted tags: when tags are active, only show co-occurring tags
+  // (tags present in sessions that match ALL selected tags).
+  // Always include activeTags so the user can deselect them.
   var allTags = useMemo(function () {
     return computeVisibleTags(entries, activeTags);
   }, [entries, activeTags]);
