@@ -140,6 +140,7 @@ export default function InboxView({ entries, onOpenSession, onImport, onLoadSamp
   var [refreshing, setRefreshing] = useState(false);
   var [activeTags, setActiveTags] = useState(getInitialTagsFromURL);
   var searchRef = useRef(null);
+  var isManifestMode = Boolean(new URLSearchParams(window.location.search).get("manifest"));
 
   useEffect(function () {
     function onKey(e) {
